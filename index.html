@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flasacardo - Kelola Deck & Belajar</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -14,13 +15,29 @@
         }
     </script>
     <style>
-        .perspective-1000 { perspective: 1000px; }
-        .transform-3d { transform-style: preserve-3d; }
-        .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-        .is-flipped { transform: rotateY(180deg); }
-        .rotate-y-180 { transform: rotateY(180deg); }
+        .perspective-1000 {
+            perspective: 1000px;
+        }
+
+        .transform-3d {
+            transform-style: preserve-3d;
+        }
+
+        .backface-hidden {
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+        }
+
+        .is-flipped {
+            transform: rotateY(180deg);
+        }
+
+        .rotate-y-180 {
+            transform: rotateY(180deg);
+        }
     </style>
 </head>
+
 <body class="bg-slate-100 text-gray-800 font-sans antialiased">
 
     <!-- Header -->
@@ -30,13 +47,13 @@
     </header>
 
     <main class="max-w-4xl mx-auto mt-8 mb-12 p-6 bg-white rounded-2xl shadow-lg relative">
-        
+
         <!-- ========================================== -->
         <!-- VIEW 1: DASHBOARD (PILIH & BUAT DECK)      -->
         <!-- ========================================== -->
         <section id="view-dashboard" class="block">
             <h2 class="text-2xl font-bold text-arema mb-6 border-b pb-2">📚 Daftar Deck Kamu</h2>
-            
+
             <!-- Grid untuk daftar deck -->
             <div id="deck-list" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <p class="text-gray-500 italic">Memuat deck...</p>
@@ -46,40 +63,65 @@
             <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 <h3 class="font-bold text-arema mb-2">+ Buat Deck & Sub-Deck Baru</h3>
                 <div class="flex flex-col sm:flex-row gap-2">
-                    <input type="text" id="inputNamaDeckBaru" placeholder="Deck Utama (Misal: B. Inggris)" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-arema">
-                    <input type="text" id="inputSubDeckBaru" placeholder="Sub-Deck (Misal: Bab 1)" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-arema">
-                    <button id="btnBuatDeck" class="bg-arema hover:bg-aremaDark text-white font-bold py-2 px-6 rounded-lg transition whitespace-nowrap">Buat</button>
+                    <input type="text" id="inputNamaDeckBaru" placeholder="Deck Utama (Misal: B. Inggris)"
+                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-arema">
+                    <input type="text" id="inputSubDeckBaru" placeholder="Sub-Deck (Misal: Bab 1)"
+                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-arema">
+                    <button id="btnBuatDeck"
+                        class="bg-arema hover:bg-aremaDark text-white font-bold py-2 px-6 rounded-lg transition whitespace-nowrap">Buat</button>
                 </div>
             </div>
         </section>
 
         <!-- ========================================== -->
-        <!-- VIEW 2: MODE BELAJAR (FLASHCARD)           -->
+        <!-- VIEW 2: MODE BELAJAR (ACTIVE RECALL & SRS) -->
         <!-- ========================================== -->
         <section id="view-belajar" class="hidden">
             <div class="flex justify-between items-center mb-6 border-b pb-2">
                 <h2 id="judulBelajar" class="text-xl font-bold text-arema">Belajar: -</h2>
-                <button id="btnKembaliBelajar" class="text-sm bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg font-bold">🔙 Kembali</button>
+                <button id="btnKembaliBelajar"
+                    class="text-sm bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg font-bold">🔙 Kembali</button>
             </div>
-            
+
             <div class="max-w-xl mx-auto text-center mb-8">
-                <p id="progressBelajar" class="text-sm text-gray-500 mb-2 font-bold">Kartu 1 / 10</p>
-                
+                <!-- Sisa kartu dalam sesi hari ini -->
+                <p id="progressBelajar" class="text-sm text-arema mb-2 font-bold bg-blue-50 py-1 rounded">Sisa antrean:
+                    0 Kartu</p>
+
                 <div class="perspective-1000 w-full h-64 mb-6 cursor-pointer" id="flashcard">
                     <div class="relative w-full h-full duration-700 transform-3d transition-transform" id="card-inner">
-                        <div class="absolute inset-0 backface-hidden border-2 border-arema bg-white rounded-xl shadow-md flex flex-col items-center justify-center p-6">
+                        <div
+                            class="absolute inset-0 backface-hidden border-2 border-arema bg-white rounded-xl shadow-md flex flex-col items-center justify-center p-6">
                             <h2 id="teksSoal" class="text-xl font-bold text-gray-700">Soal</h2>
                             <img id="gambarSoal" src="" alt="Gambar Soal" class="mt-4 max-h-28 rounded-md hidden">
                         </div>
-                        <div class="absolute inset-0 backface-hidden rotate-y-180 bg-arema text-white rounded-xl shadow-md flex items-center justify-center p-6">
+                        <div
+                            class="absolute inset-0 backface-hidden rotate-y-180 bg-arema text-white rounded-xl shadow-md flex items-center justify-center p-6">
                             <h2 id="teksJawaban" class="text-2xl font-bold text-center overflow-y-auto">Jawaban</h2>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex justify-center gap-4">
-                    <button id="btnBalik" class="bg-arema hover:bg-aremaDark text-white font-bold py-2 px-6 rounded-lg transition shadow">Balik Kartu</button>
-                    <button id="btnLanjut" class="border-2 border-arema text-arema hover:bg-arema hover:text-white font-bold py-2 px-6 rounded-lg transition">Berikutnya ➔</button>
+                <!-- Tombol Tampilkan Jawaban (Active Recall) -->
+                <div id="areaTampilJawaban" class="block">
+                    <button id="btnBalikLayar"
+                        class="w-full bg-arema hover:bg-aremaDark text-white font-bold py-3 px-6 rounded-lg transition shadow-lg text-lg">
+                        Tampilkan Jawaban 👁️
+                    </button>
+                </div>
+
+                <!-- Tombol SRS (Hanya muncul setelah kartu dibalik) -->
+                <div id="areaSRS" class="hidden flex gap-4 justify-center mt-4">
+                    <button id="btnSusah"
+                        class="w-1/2 bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg transition shadow flex flex-col items-center">
+                        <span>Susah</span>
+                        <span class="text-xs font-normal opacity-80">&lt; 1 Menit</span>
+                    </button>
+                    <button id="btnLumayan"
+                        class="w-1/2 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition shadow flex flex-col items-center">
+                        <span>Lumayan</span>
+                        <span id="labelWaktuLumayan" class="text-xs font-normal opacity-80">Besok</span>
+                    </button>
                 </div>
             </div>
         </section>
@@ -90,7 +132,8 @@
         <section id="view-kelola" class="hidden">
             <div class="flex justify-between items-center mb-6 border-b pb-2">
                 <h2 id="judulKelola" class="text-xl font-bold text-arema">Kelola: -</h2>
-                <button id="btnKembaliKelola" class="text-sm bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg font-bold">🔙 Kembali</button>
+                <button id="btnKembaliKelola"
+                    class="text-sm bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg font-bold">🔙 Kembali</button>
             </div>
 
             <div class="bg-gray-50 p-4 rounded-lg border mb-8">
@@ -101,18 +144,25 @@
 
                 <!-- Form Single -->
                 <div id="formSingle" class="block space-y-3">
-                    <input type="text" id="inputSoal" placeholder="Pertanyaan..." class="w-full px-4 py-2 border rounded-lg">
-                    <input type="text" id="inputJawaban" placeholder="Jawaban..." class="w-full px-4 py-2 border rounded-lg">
-                    <input type="file" id="inputGambar" accept="image/*" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-                    <button id="btnSimpanSingle" class="w-full bg-arema text-white font-bold py-2 px-4 rounded-lg">Simpan Kartu</button>
+                    <input type="text" id="inputSoal" placeholder="Pertanyaan..."
+                        class="w-full px-4 py-2 border rounded-lg">
+                    <input type="text" id="inputJawaban" placeholder="Jawaban..."
+                        class="w-full px-4 py-2 border rounded-lg">
+                    <input type="file" id="inputGambar" accept="image/*"
+                        class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                    <button id="btnSimpanSingle"
+                        class="w-full bg-arema text-white font-bold py-2 px-4 rounded-lg">Simpan Kartu</button>
                     <p id="statusUpload" class="text-sm text-center font-medium"></p>
                 </div>
 
                 <!-- Form Bulk -->
                 <div id="formBulk" class="hidden space-y-3">
                     <p class="text-xs text-gray-500">Format: <b>Soal | Jawaban</b>, tekan Enter untuk baris baru.</p>
-                    <textarea id="inputBulk" rows="5" class="w-full px-4 py-2 border rounded-lg font-mono text-sm" placeholder="Ibukota Indonesia | Nusantara&#10;1+1 | 2"></textarea>
-                    <button id="btnSimpanBulk" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Simpan Banyak Kartu Sekaligus</button>
+                    <textarea id="inputBulk" rows="5" class="w-full px-4 py-2 border rounded-lg font-mono text-sm"
+                        placeholder="Ibukota Indonesia | Nusantara&#10;1+1 | 2"></textarea>
+                    <button id="btnSimpanBulk"
+                        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">Simpan
+                        Banyak Kartu Sekaligus</button>
                     <p id="statusBulk" class="text-sm text-center font-medium"></p>
                 </div>
             </div>
@@ -141,22 +191,28 @@
             <h3 class="text-xl font-bold text-arema mb-4">Edit Kartu</h3>
             <input type="hidden" id="editIdKartu">
             <input type="hidden" id="editUrlLama">
-            
+
             <div class="space-y-3">
                 <input type="text" id="editSoal" class="w-full px-4 py-2 border rounded-lg">
                 <input type="text" id="editJawaban" class="w-full px-4 py-2 border rounded-lg">
-                
+
                 <label class="block text-xs text-gray-500">Ganti Gambar (Opsional):</label>
-                <input type="file" id="editGambarBaru" accept="image/*" class="w-full px-3 py-2 border rounded-lg text-sm">
-                
-                <div class="flex items-center gap-2 mt-2 bg-red-50 p-2 rounded-lg border border-red-100 hidden" id="areaHapusGambar">
+                <input type="file" id="editGambarBaru" accept="image/*"
+                    class="w-full px-3 py-2 border rounded-lg text-sm">
+
+                <div class="flex items-center gap-2 mt-2 bg-red-50 p-2 rounded-lg border border-red-100 hidden"
+                    id="areaHapusGambar">
                     <input type="checkbox" id="centangHapusGambar" class="w-4 h-4 text-red-600 rounded">
-                    <label for="centangHapusGambar" class="text-sm text-red-600 font-bold">Hapus gambar dari kartu ini</label>
+                    <label for="centangHapusGambar" class="text-sm text-red-600 font-bold">Hapus gambar dari kartu
+                        ini</label>
                 </div>
-                
+
                 <div class="flex gap-2 mt-4">
-                    <button id="btnBatalEdit" class="w-1/2 bg-gray-300 hover:bg-gray-400 font-bold py-2 rounded-lg">Batal</button>
-                    <button id="btnSimpanEdit" class="w-1/2 bg-arema hover:bg-aremaDark text-white font-bold py-2 rounded-lg">Update Data</button>
+                    <button id="btnBatalEdit"
+                        class="w-1/2 bg-gray-300 hover:bg-gray-400 font-bold py-2 rounded-lg">Batal</button>
+                    <button id="btnSimpanEdit"
+                        class="w-1/2 bg-arema hover:bg-aremaDark text-white font-bold py-2 rounded-lg">Update
+                        Data</button>
                 </div>
                 <p id="statusEdit" class="text-sm text-center mt-2"></p>
             </div>
@@ -166,4 +222,5 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
 </body>
+
 </html>

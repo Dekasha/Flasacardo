@@ -15,8 +15,8 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // ==========================================
 let currentDeck = "";
 let currentSubDeck = "";
-let daftarKartu = [];
-let indexSaatIni = 0;
+let daftarKartu = []; 
+let indexSaatIni = 0; // Karena pakai sistem antrean (Queue), index akan selalu 0
 
 const viewDashboard = document.getElementById('view-dashboard');
 const viewBelajar = document.getElementById('view-belajar');
@@ -33,7 +33,7 @@ function switchView(viewId) {
 }
 
 // ==========================================
-// 3. LOGIKA DASHBOARD (GROUPING DECK & SUB DECK)
+// 3. LOGIKA DASHBOARD
 // ==========================================
 async function loadDashboard() {
     switchView('view-dashboard');
@@ -41,7 +41,7 @@ async function loadDashboard() {
     deckList.innerHTML = '<p class="text-gray-500 italic">Memuat deck...</p>';
 
     try {
-        const { data, error } = await supabaseClient.from('kartu_belajar').select('nama_deck, sub_deck');
+        const { data, error } = await supabaseClient.from('kartu_belajar').select('nama_deck, sub_deck, tanggal_review');
         if (error) throw error;
 
         deckList.innerHTML = '';
@@ -50,24 +50,35 @@ async function loadDashboard() {
             return;
         }
 
+        // Hitung kartu jatuh tempo HARI INI
+        const hariIni = new Date().toLocaleDateString('en-CA'); // Format YYYY-MM-DD sesuai zona waktu lokal
         const strukturDeck = {};
+        const dueCount = {};
+
         data.forEach(item => {
             if (!strukturDeck[item.nama_deck]) {
                 strukturDeck[item.nama_deck] = new Set();
+                dueCount[item.nama_deck] = 0;
             }
             strukturDeck[item.nama_deck].add(item.sub_deck || "Utama");
+            
+            // Kalau tanggal review <= hari ini, berarti harus dipelajari
+            if (item.tanggal_review <= hariIni) {
+                dueCount[item.nama_deck]++;
+            }
         });
 
-        // Merender HTML per Deck Utama
         Object.keys(strukturDeck).forEach((namaUtama, index) => {
-            const idSafe = "deck_" + index; // ID unik untuk mengelompokkan checkbox
-            
+            const idSafe = "deck_" + index;
             const div = document.createElement('div');
             div.className = 'bg-white border-2 border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col';
             
             let htmlIsi = `
                 <div class="bg-gray-100 p-3 border-b-2 border-gray-200 flex justify-between items-center">
-                    <h3 class="font-bold text-lg text-arema truncate mr-2">${namaUtama}</h3>
+                    <div>
+                        <h3 class="font-bold text-lg text-arema truncate">${namaUtama}</h3>
+                        <span class="text-xs font-bold text-red-500">🔥 ${dueCount[namaUtama]} Due Hari Ini</span>
+                    </div>
                     <button onclick="bukaBelajar('${namaUtama.replace(/'/g, "\\'")}', 'SEMUA')" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition shrink-0">
                         Belajar Semua
                     </button>
@@ -76,7 +87,6 @@ async function loadDashboard() {
             `;
             
             strukturDeck[namaUtama].forEach(namaSub => {
-                // TAMBAHAN: Kotak centang (Checkbox) di samping nama Sub-Deck
                 const namaSubAman = namaSub.replace(/'/g, "\\'");
                 htmlIsi += `
                     <li class="flex justify-between items-center border-b pb-2 last:border-0 last:pb-0">
@@ -92,117 +102,96 @@ async function loadDashboard() {
                 `;
             });
             
-            // TAMBAHAN: Tombol Belajar Pilihan di bagian bawah kotak Deck
             htmlIsi += `</ul>
                 <div class="bg-blue-50 p-2 border-t-2 border-blue-100 flex justify-center hover:bg-blue-100 transition">
-                    <button onclick="bukaBelajarPilihan('${namaUtama.replace(/'/g, "\\'")}', '${idSafe}')" class="text-arema hover:text-aremaDark text-sm font-bold flex items-center gap-2 w-full justify-center">
-                        ✓ Belajar Sub-Deck Centang
+                    <button onclick="bukaBelajarPilihan('${namaUtama.replace(/'/g, "\\'")}', '${idSafe}')" class="text-arema hover:text-aremaDark text-sm font-bold flex flex-col items-center w-full justify-center">
+                        <span>✓ Belajar Sub-Deck Centang</span>
                     </button>
                 </div>
             `;
-            
             div.innerHTML = htmlIsi;
             deckList.appendChild(div);
         });
-
-    } catch (error) {
-        console.error("Gagal memuat deck:", error);
-    }
+    } catch (error) { console.error("Gagal memuat deck:", error); }
 }
 
 document.getElementById('btnBuatDeck').addEventListener('click', () => {
     const namaBaru = document.getElementById('inputNamaDeckBaru').value.trim();
     const subBaru = document.getElementById('inputSubDeckBaru').value.trim() || "Utama"; 
-    
     if (!namaBaru) return alert("Nama Deck Utama tidak boleh kosong!");
-    
     document.getElementById('inputNamaDeckBaru').value = '';
     document.getElementById('inputSubDeckBaru').value = '';
     bukaKelola(namaBaru, subBaru);
 });
 
-
 // ==========================================
-// 4. LOGIKA MODE BELAJAR (SATUAN, SEMUA, & PILIHAN)
+// 4. LOGIKA MODE BELAJAR (SPACED REPETITION)
 // ==========================================
+async function tarikDataBelajar(query) {
+    const hariIni = new Date().toLocaleDateString('en-CA');
+    
+    // HANYA TARIK KARTU YANG JADWAL REVIEW-NYA HARI INI ATAU SEBELUMNYA
+    const { data } = await query.lte('tanggal_review', hariIni);
+    
+    if (!data || data.length === 0) {
+        alert("Wah, kamu sudah menyelesaikan semua review untuk hari ini! Kembali besok ya.");
+        loadDashboard();
+        return;
+    }
 
-// Fungsi Belajar Standar (Satu Sub-Deck atau SEMUA)
+    daftarKartu = data.sort(() => Math.random() - 0.5); // Acak
+    tampilkanKartuDiLayar();
+}
+
 async function bukaBelajar(deckUtama, subDeck) {
     currentDeck = deckUtama;
     currentSubDeck = subDeck;
-    
-    if (subDeck === 'SEMUA') {
-        document.getElementById('judulBelajar').innerText = `${deckUtama} (Semua Bab)`;
-    } else {
-        document.getElementById('judulBelajar').innerText = `${deckUtama} > ${subDeck}`;
-    }
-    
+    document.getElementById('judulBelajar').innerText = subDeck === 'SEMUA' ? `${deckUtama} (Semua)` : `${deckUtama} > ${subDeck}`;
     switchView('view-belajar');
     
     let query = supabaseClient.from('kartu_belajar').select('*').eq('nama_deck', deckUtama);
     if (subDeck !== 'SEMUA') query = query.eq('sub_deck', subDeck);
     
-    const { data } = await query;
-    if (!data || data.length === 0) return alertKosong();
-
-    daftarKartu = subDeck === 'SEMUA' ? data.sort(() => Math.random() - 0.5) : data;
-    indexSaatIni = 0;
-    tampilkanKartuDiLayar();
+    tarikDataBelajar(query);
 }
 
-// Fungsi BARU: Belajar Berdasarkan Centang (Checkbox)
 async function bukaBelajarPilihan(deckUtama, idSafe) {
-    // Cari semua checkbox yang dicentang di dalam Deck ini
     const checkboxes = document.querySelectorAll(`.chk-${idSafe}:checked`);
     const subDecksTerpilih = Array.from(checkboxes).map(cb => cb.value);
 
-    // Validasi kalau user belum centang apa-apa
-    if (subDecksTerpilih.length === 0) {
-        return alert("Centang minimal satu sub-deck dulu di kotak kecil sebelah kirinya, Sam!");
-    }
-
-    // Kalau cuma centang 1, oper ke fungsi belajar normal
-    if (subDecksTerpilih.length === 1) {
-        return bukaBelajar(deckUtama, subDecksTerpilih[0]);
-    }
+    if (subDecksTerpilih.length === 0) return alert("Centang minimal satu sub-deck!");
+    if (subDecksTerpilih.length === 1) return bukaBelajar(deckUtama, subDecksTerpilih[0]);
 
     document.getElementById('judulBelajar').innerText = `${deckUtama} (${subDecksTerpilih.length} Pilihan)`;
     switchView('view-belajar');
     
-    // Fitur sakti Supabase: .in() untuk mengambil banyak data sekaligus
-    const { data, error } = await supabaseClient
-        .from('kartu_belajar')
-        .select('*')
-        .eq('nama_deck', deckUtama)
-        .in('sub_deck', subDecksTerpilih); 
-        
-    if (error || !data || data.length === 0) return alertKosong();
-
-    // Acak kartu karena ini gabungan materi
-    daftarKartu = data.sort(() => Math.random() - 0.5);
-    indexSaatIni = 0;
-    tampilkanKartuDiLayar();
+    let query = supabaseClient.from('kartu_belajar').select('*').eq('nama_deck', deckUtama).in('sub_deck', subDecksTerpilih);
+    tarikDataBelajar(query);
 }
 
-function alertKosong() {
-    alert("Tidak ada kartu yang ditemukan!");
-    loadDashboard();
-}
-
-// DOM & Animasi Kartu
+// --- DOM ACTIVE RECALL ---
 const flashcard = document.getElementById('flashcard');
 const cardInner = document.getElementById('card-inner');
+const areaTampilJawaban = document.getElementById('areaTampilJawaban');
+const areaSRS = document.getElementById('areaSRS');
 
-function balikKartu() { cardInner.classList.toggle('is-flipped'); }
-flashcard.addEventListener('click', balikKartu);
-document.getElementById('btnBalik').addEventListener('click', balikKartu);
+// Tombol Tampilkan Jawaban ditekan
+document.getElementById('btnBalikLayar').addEventListener('click', () => {
+    cardInner.classList.add('is-flipped');
+    areaTampilJawaban.classList.add('hidden'); // Sembunyikan tombol Tampilkan
+    areaSRS.classList.remove('hidden'); // Munculkan tombol Susah/Lumayan
+});
 
 function tampilkanKartuDiLayar() {
     cardInner.classList.remove('is-flipped');
-    const kartu = daftarKartu[indexSaatIni];
+    areaTampilJawaban.classList.remove('hidden');
+    areaSRS.classList.add('hidden');
+    
+    // Ambil kartu terdepan di antrean (selalu index 0)
+    const kartu = daftarKartu[0]; 
     
     setTimeout(() => {
-        document.getElementById('progressBelajar').innerText = `Kartu ${indexSaatIni + 1} / ${daftarKartu.length}`;
+        document.getElementById('progressBelajar').innerText = `Sisa Antrean: ${daftarKartu.length} Kartu`;
         document.getElementById('teksSoal').innerText = kartu.soal;
         document.getElementById('teksJawaban').innerText = kartu.jawaban;
         
@@ -213,21 +202,62 @@ function tampilkanKartuDiLayar() {
         } else {
             imgEl.classList.add('hidden');
         }
+
+        // Tampilkan kalkulasi waktu untuk tombol Lumayan
+        const nextInterval = kartu.interval_hari === 0 ? 1 : kartu.interval_hari * 2;
+        document.getElementById('labelWaktuLumayan').innerText = nextInterval === 1 ? "Besok" : `${nextInterval} Hari`;
+        
     }, 150);
 }
 
-document.getElementById('btnLanjut').addEventListener('click', () => {
-    indexSaatIni++;
-    if (indexSaatIni >= daftarKartu.length) {
-        indexSaatIni = 0;
-        alert("Mantap! Kamu sudah mereview semua kartu dalam sesi ini!");
-    }
+// --- LOGIKA TOMBOL SRS ---
+
+// JIKA KLIK SUSAH
+document.getElementById('btnSusah').addEventListener('click', () => {
+    const kartu = daftarKartu.shift(); // Cabut kartu dari urutan pertama
+    
+    // Reset interval menjadi 0 (kembali ke awal)
+    kartu.interval_hari = 0; 
+    
+    // Lempar kembali ke tumpukan paling belakang agar diulang HARI INI JUGA!
+    daftarKartu.push(kartu); 
+    
+    // Simpan ke DB secara diam-diam di background (supaya kalau diclose ga ilang)
+    const hariIniStr = new Date().toLocaleDateString('en-CA');
+    supabaseClient.from('kartu_belajar').update({ interval_hari: 0, tanggal_review: hariIniStr }).eq('id', kartu.id).then();
+    
     tampilkanKartuDiLayar();
+});
+
+// JIKA KLIK LUMAYAN
+document.getElementById('btnLumayan').addEventListener('click', async () => {
+    const kartu = daftarKartu.shift(); // Cabut dari urutan pertama (DIBUANG dari antrean hari ini)
+    
+    // Hitung interval baru (jika 0 jadi 1 hari, jika 1 jadi 2 hari, jika 2 jadi 4 hari, dst)
+    const newInterval = kartu.interval_hari === 0 ? 1 : kartu.interval_hari * 2;
+    
+    // Hitung tanggal kedaluwarsa baru
+    let nextDate = new Date();
+    nextDate.setDate(nextDate.getDate() + newInterval);
+    const nextDateStr = nextDate.toLocaleDateString('en-CA'); // Format YYYY-MM-DD
+    
+    // Simpan ke DB
+    supabaseClient.from('kartu_belajar').update({ interval_hari: newInterval, tanggal_review: nextDateStr }).eq('id', kartu.id).then();
+    
+    // Cek apakah antrean sudah habis?
+    if (daftarKartu.length === 0) {
+        alert("🎉 HORE! Kamu sudah merampungkan semua jadwal review untuk hari ini!");
+        loadDashboard();
+    } else {
+        tampilkanKartuDiLayar();
+    }
 });
 
 
 // ==========================================
-// 5. LOGIKA MODE KELOLA (CRUD & BULK)
+// 5. LOGIKA KELOLA (CRUD & BULK)
+// (Catatan: Kode CRUD di bawah ini sama persis dengan yang sebelumnya, 
+// tidak ada fungsi yang berubah, hanya format tabel)
 // ==========================================
 async function bukaKelola(deckUtama, subDeck) {
     currentDeck = deckUtama;
@@ -240,19 +270,14 @@ async function bukaKelola(deckUtama, subDeck) {
 async function muatTabelKartu() {
     const tbody = document.getElementById('tabelKartuBody');
     tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4">Memuat data...</td></tr>';
-
     const { data, error } = await supabaseClient.from('kartu_belajar')
-                            .select('*')
-                            .eq('nama_deck', currentDeck)
-                            .eq('sub_deck', currentSubDeck)
-                            .order('created_at', { ascending: false });
+                            .select('*').eq('nama_deck', currentDeck).eq('sub_deck', currentSubDeck).order('created_at', { ascending: false });
     
     tbody.innerHTML = '';
     if (data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Belum ada kartu di sub-deck ini.</td></tr>';
         return;
     }
-
     data.forEach(kartu => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -261,8 +286,8 @@ async function muatTabelKartu() {
             <td class="py-2 px-4 border-b text-sm text-center">
                 ${kartu.gambar_url ? `<img src="${kartu.gambar_url}" class="h-8 mx-auto rounded">` : '-'}
             </td>
-            <td class="py-2 px-4 border-b text-sm text-center">
-                <button onclick='bukaModalEdit(${JSON.stringify(kartu)})' class="bg-yellow-400 hover:bg-yellow-500 text-white px-2 py-1 rounded text-xs font-bold mr-1">Edit</button>
+            <td class="py-2 px-4 border-b text-sm text-center min-w-[120px]">
+                <button onclick='bukaModalEdit(${JSON.stringify(kartu).replace(/'/g, "&apos;")})' class="bg-yellow-400 hover:bg-yellow-500 text-white px-2 py-1 rounded text-xs font-bold mr-1">Edit</button>
                 <button onclick="hapusKartu(${kartu.id})" class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">Hapus</button>
             </td>
         `;
@@ -282,9 +307,7 @@ document.getElementById('tabBulk').addEventListener('click', (e) => {
     document.getElementById('formBulk').classList.remove('hidden'); document.getElementById('formSingle').classList.add('hidden');
 });
 
-// ==========================================
-// 6. CREATE (Single, Bulk, Upload Gambar)
-// ==========================================
+// Create 
 async function uploadKeCloudinary(file) {
     const formData = new FormData();
     formData.append('file', file);
@@ -300,32 +323,21 @@ document.getElementById('btnSimpanSingle').addEventListener('click', async (e) =
     const jawaban = document.getElementById('inputJawaban').value.trim();
     const file = document.getElementById('inputGambar').files[0];
     const status = document.getElementById('statusUpload');
-
     if (!soal || !jawaban) return alert("Soal dan Jawaban wajib diisi!");
     
     e.target.disabled = true; e.target.innerText = "Memproses...";
     let urlGambar = "";
-
     try {
         if (file) {
             status.innerText = "Mengunggah gambar...";
             urlGambar = await uploadKeCloudinary(file);
         }
         status.innerText = "Menyimpan ke database...";
-        
-        // Simpan dengan tambahan field sub_deck
         await supabaseClient.from('kartu_belajar').insert([{ nama_deck: currentDeck, sub_deck: currentSubDeck, soal, jawaban, gambar_url: urlGambar }]);
-        
-        document.getElementById('inputSoal').value = '';
-        document.getElementById('inputJawaban').value = '';
-        document.getElementById('inputGambar').value = '';
-        status.innerText = "Berhasil disimpan!";
-        status.className = "text-sm text-green-600 text-center font-bold";
+        document.getElementById('inputSoal').value = ''; document.getElementById('inputJawaban').value = ''; document.getElementById('inputGambar').value = '';
+        status.innerText = "Berhasil disimpan!"; status.className = "text-sm text-green-600 text-center font-bold";
         await muatTabelKartu();
-    } catch (err) {
-        status.innerText = "Terjadi kesalahan.";
-        status.className = "text-sm text-red-600 text-center font-bold";
-    }
+    } catch (err) { status.innerText = "Terjadi kesalahan."; status.className = "text-sm text-red-600 text-center font-bold"; }
     setTimeout(() => { e.target.disabled = false; e.target.innerText = "Simpan Kartu"; status.innerText = ""; }, 2000);
 });
 
@@ -338,11 +350,9 @@ document.getElementById('btnSimpanBulk').addEventListener('click', async (e) => 
     teksBulk.split('\n').forEach(baris => {
         if (baris.includes('|')) {
             const bagian = baris.split('|');
-            // Simpan dengan tambahan field sub_deck
             dataInsert.push({ nama_deck: currentDeck, sub_deck: currentSubDeck, soal: bagian[0].trim(), jawaban: bagian[1].trim() });
         }
     });
-
     if (dataInsert.length === 0) return alert("Format salah. Pakai tanda |");
 
     e.target.disabled = true; e.target.innerText = "Menyimpan " + dataInsert.length + " kartu...";
@@ -356,9 +366,7 @@ document.getElementById('btnSimpanBulk').addEventListener('click', async (e) => 
     setTimeout(() => { e.target.disabled = false; e.target.innerText = "Simpan Banyak Kartu Sekaligus"; status.innerText = ""; }, 2000);
 });
 
-// ==========================================
-// 7. UPDATE & DELETE KARTU
-// ==========================================
+// Update Delete
 async function hapusKartu(id) {
     if (confirm("Yakin ingin menghapus kartu ini secara permanen?")) {
         await supabaseClient.from('kartu_belajar').delete().eq('id', id);
@@ -377,9 +385,7 @@ function bukaModalEdit(kartu) {
     document.getElementById('editJawaban').value = kartu.jawaban;
     document.getElementById('editGambarBaru').value = ''; 
     centangHapusGambar.checked = false;
-    
-    if (kartu.gambar_url) { areaHapusGambar.classList.remove('hidden'); } 
-    else { areaHapusGambar.classList.add('hidden'); }
+    if (kartu.gambar_url) { areaHapusGambar.classList.remove('hidden'); } else { areaHapusGambar.classList.add('hidden'); }
     modalEdit.classList.remove('hidden');
 }
 
@@ -406,7 +412,6 @@ document.getElementById('btnSimpanEdit').addEventListener('click', async (e) => 
         modalEdit.classList.add('hidden');
         await muatTabelKartu(); 
     } catch (err) { status.innerText = "Gagal memperbarui."; }
-    
     e.target.disabled = false; e.target.innerText = "Update Data"; status.innerText = "";
 });
 
